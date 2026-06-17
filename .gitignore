@@ -1,0 +1,21 @@
+# Local Env and Secrets
+.env
+login_payload.json
+test_payload.json
+
+# Docker Volumes & Local Databases
+volume-data/
+influxdb_data/
+
+# IDE files
+.idea/
+*.iml
+
+# Node/React dependencies
+het-client/node_modules/
+het-client/dist/
+
+# Agent and temporary files
+.agents/
+transcript.jsonl
+*.log
