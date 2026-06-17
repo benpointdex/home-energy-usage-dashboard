@@ -1,5 +1,6 @@
 package com.henry.gateway_service.route;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.server.mvc.filter.CircuitBreakerFilterFunctions;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,11 +18,14 @@ import static org.springframework.cloud.gateway.server.mvc.handler.HandlerFuncti
 @Configuration
 public class UsageServiceRoute {
 
+    @Value("${services.usage-service.url:http://localhost:8083}")
+    private String usageServiceUrl;
+
     @Bean
     public RouterFunction<ServerResponse> usageServiceRoutes(){
         return route("usage-service")
                 .route(RequestPredicates.path("/api/v1/usage/**"), http())
-                .before(uri("http://localhost:8083"))
+                .before(uri(usageServiceUrl))
                 .filter(CircuitBreakerFilterFunctions.circuitBreaker("usageServiceCircuitBreaker",
                         URI.create("forward:/fallback/usage"))
                 )

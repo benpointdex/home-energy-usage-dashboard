@@ -1,5 +1,6 @@
 package com.henry.gateway_service.route;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.server.mvc.filter.CircuitBreakerFilterFunctions;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,11 +18,14 @@ import static org.springframework.cloud.gateway.server.mvc.handler.HandlerFuncti
 @Configuration
 public class InsightServiceRoute {
 
+    @Value("${services.insight-service.url:http://localhost:8085}")
+    private String insightServiceUrl;
+
     @Bean
     public RouterFunction<ServerResponse> insightServiceRoutes(){
         return route("insight-service")
                 .route(RequestPredicates.path("/api/v1/insight/**"), http())
-                .before(uri("http://localhost:8085"))
+                .before(uri(insightServiceUrl))
                 .filter(CircuitBreakerFilterFunctions.circuitBreaker("insightServiceCircuitBreaker",
                         URI.create("forward:/fallback/insight"))
                 )

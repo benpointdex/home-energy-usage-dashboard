@@ -1,5 +1,6 @@
 package com.henry.gateway_service.route;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.server.mvc.filter.CircuitBreakerFilterFunctions;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,11 +18,14 @@ import static org.springframework.cloud.gateway.server.mvc.handler.HandlerFuncti
 @Configuration
 public class AlertServiceRoute {
 
+    @Value("${services.alert-service.url:http://localhost:8084}")
+    private String alertServiceUrl;
+
     @Bean
     public RouterFunction<ServerResponse> alertServiceRoutes(){
         return route("alert-service")
                 .route(RequestPredicates.path("/api/v1/alert/**"), http())
-                .before(uri("http://localhost:8084"))
+                .before(uri(alertServiceUrl))
                 .filter(CircuitBreakerFilterFunctions.circuitBreaker("alertServiceCircuitBreaker",
                         URI.create("forward:/fallback/alert"))
                 )

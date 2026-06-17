@@ -1,5 +1,6 @@
 package com.henry.gateway_service.route;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.server.mvc.filter.CircuitBreakerFilterFunctions;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,11 +18,14 @@ import static org.springframework.cloud.gateway.server.mvc.handler.HandlerFuncti
 @Configuration
 public class DeviceServiceRoute {
 
+    @Value("${services.device-service.url:http://localhost:8081}")
+    private String deviceServiceUrl;
+
     @Bean
     public RouterFunction<ServerResponse> deviceServiceRoutes(){
         return route("device-service")
                 .route(RequestPredicates.path("/api/v1/device/**"), http())
-                .before(uri("http://localhost:8081"))
+                .before(uri(deviceServiceUrl))
                 .filter(CircuitBreakerFilterFunctions.circuitBreaker("deviceServiceCircuitBreaker",
                         URI.create("forward:/fallback/device"))
                 )

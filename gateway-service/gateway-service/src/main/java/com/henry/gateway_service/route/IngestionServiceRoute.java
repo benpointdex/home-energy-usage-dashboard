@@ -1,5 +1,6 @@
 package com.henry.gateway_service.route;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.server.mvc.filter.CircuitBreakerFilterFunctions;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,11 +18,14 @@ import static org.springframework.cloud.gateway.server.mvc.handler.HandlerFuncti
 @Configuration
 public class IngestionServiceRoute {
 
+    @Value("${services.ingestion-service.url:http://localhost:8082}")
+    private String ingestionServiceUrl;
+
     @Bean
     public RouterFunction<ServerResponse> ingestionServiceRoutes(){
         return route("ingestion-service")
                 .route(RequestPredicates.path("/api/v1/ingestion/**"), http())
-                .before(uri("http://localhost:8082"))
+                .before(uri(ingestionServiceUrl))
                 .filter(CircuitBreakerFilterFunctions.circuitBreaker("ingestionServiceCircuitBreaker",
                         URI.create("forward:/fallback/ingestion"))
                 )
