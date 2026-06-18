@@ -1,8 +1,10 @@
 package com.henry.user_service.controller;
 
 
+import com.henry.user_service.dto.RegistrationDto;
 import com.henry.user_service.dto.UserDto;
 import com.henry.user_service.service.UserService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -12,7 +14,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/user")
@@ -23,6 +28,30 @@ public class UserController {
     public UserController(UserService userService) {
         this.userService = userService;
     }
+
+    // ─────────────────────────────────────────────────────────
+    // GAP-01: Unified registration — NO Authorization header needed
+    // ─────────────────────────────────────────────────────────
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@Valid @RequestBody RegistrationDto dto) {
+        try {
+            UserDto created = userService.register(dto);
+            return ResponseEntity.status(HttpStatus.CREATED).body(created);
+        } catch (RuntimeException e) {
+            if ("EMAIL_ALREADY_EXISTS".equals(e.getMessage())) {
+                return ResponseEntity
+                        .status(HttpStatus.CONFLICT)
+                        .body(Map.of("error", "An account with this email already exists"));
+            }
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Registration failed. Please try again."));
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // Existing CRUD endpoints
+    // ─────────────────────────────────────────────────────────
 
     @PostMapping
     public ResponseEntity<UserDto> createUser(@RequestBody UserDto userDto) {
@@ -39,14 +68,24 @@ public class UserController {
         return ResponseEntity.ok(userDto);
     }
 
+    @GetMapping("/by-email")
+    public ResponseEntity<UserDto> getUserByEmail(@RequestParam String email) {
+        UserDto userDto = userService.getUserByEmail(email);
+        if (userDto == null) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+        return ResponseEntity.ok(userDto);
+    }
+
+    // GAP-04: returns UserDto (JSON) instead of plain text string
     @PutMapping("/{id}")
-    public ResponseEntity<String> updateUser(@PathVariable Long id,
-                                             @RequestBody UserDto userDto) {
+    public ResponseEntity<?> updateUser(@PathVariable Long id,
+                                        @RequestBody UserDto userDto) {
         try {
-            userService.updateUser(id, userDto);
-            return ResponseEntity.ok("User updated successfully");
+            UserDto updated = userService.updateUser(id, userDto);
+            return ResponseEntity.ok(updated);
         } catch (IllegalArgumentException e) {
-            return new ResponseEntity<>("User not found", HttpStatus.NOT_FOUND);
+            return new ResponseEntity<>(Map.of("error", "User not found"), HttpStatus.NOT_FOUND);
         }
     }
 
