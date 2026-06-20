@@ -12,12 +12,10 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.util.Random;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.time.Instant;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -29,50 +27,106 @@ public class ParallelDataSimulation implements CommandLineRunner {
     @Value("${simulation.parallel-threads}")
     private int parallelThreads;
 
-    @Value("${simulation.requests-per-interval}")
-    private int requestsPerInterval;
+    @Value("${simulation.interval-ms}")
+    private long intervalMs;
 
     @Value("${simulation.endpoint}")
     private String ingestionEndpoint;
 
+    @Value("${device.service.url:http://localhost:8081/api/v1/device}")
+    private String deviceServiceUrl;
+
     private final ExecutorService executorService;
+
+    // Per-user base multiplier: seeded from userId so each user has a
+    // naturally different consumption level that stays consistent across ticks.
+    // Range: 0.5 (low-consumption household) to 1.5 (high-consumption household)
+    private final Map<Long, Double> userBaseMultipliers = new ConcurrentHashMap<>();
+
+    private record DeviceDto(Long id, String name, String type, String location,
+                             Long userId, Double energyConsumed, String status) {}
+    private record UserDto(Long id, String name, String surname, String email,
+                           String address, boolean alerting, double energyAlertingThreshold) {}
 
     public ParallelDataSimulation() {
         this.executorService = Executors.newCachedThreadPool();
     }
 
     @Override
-    public void run(String... args) throws Exception {
-        log.info("ParallelDataSimulator started...");
-        ((ThreadPoolExecutor)executorService).setCorePoolSize(parallelThreads);
+    public void run(String... args) {
+        log.info("ParallelDataSimulator (Level 3) started.");
+        ((ThreadPoolExecutor) executorService).setCorePoolSize(parallelThreads);
     }
 
     @Scheduled(fixedRateString = "${simulation.interval-ms}")
     public void sendMockData() {
-        int batchSize = requestsPerInterval / parallelThreads;
-        int remainder = requestsPerInterval % parallelThreads;
+        executorService.submit(() -> {
+            try {
+                // Fetch all devices (includes status field now)
+                DeviceDto[] devicesArray = restTemplate.getForObject(
+                    deviceServiceUrl, DeviceDto[].class);
+                List<DeviceDto> devices = devicesArray != null
+                    ? Arrays.asList(devicesArray)
+                    : Collections.emptyList();
 
-        for (int i = 0; i < parallelThreads; i++) {
-            int requestsForThread = batchSize + (i < remainder ? 1 : 0);
-            executorService.submit(() -> {
-                for (int j = 0; j < requestsForThread; j++) {
-                    EnergyUsageDto dto = EnergyUsageDto.builder()
-                            .deviceId(random.nextLong(1, 200))
-                            .energyConsumed(Math.round(random.nextDouble(0.0, 2.0) * 100.0) / 100.0)
-                            .timestamp(LocalDateTime.now()
-                                    .atZone(ZoneId.systemDefault()).toInstant())
-                            .build();
-                    try {
-                        HttpHeaders headers = new HttpHeaders();
-                        headers.setContentType(MediaType.APPLICATION_JSON);
-                        HttpEntity<EnergyUsageDto> request = new HttpEntity<>(dto, headers);
-                        restTemplate.postForEntity(ingestionEndpoint, request, Void.class);
-                        log.info("Sent mock data: " + dto);
-                    } catch (Exception e) {
-                        log.error("Failed to send data: " + e.getMessage());
+                if (devices.isEmpty()) {
+                    log.info("No registered devices found. Skipping tick.");
+                    return;
+                }
+
+                // Group by userId
+                Map<Long, List<DeviceDto>> devicesByUser = devices.stream()
+                    .filter(d -> d.userId() != null)
+                    .collect(Collectors.groupingBy(DeviceDto::userId));
+
+                for (Map.Entry<Long, List<DeviceDto>> entry : devicesByUser.entrySet()) {
+                    Long userId = entry.getKey();
+                    List<DeviceDto> userDevices = entry.getValue();
+
+                    // Derive a stable per-user multiplier from userId (0.5 to 1.5)
+                    double userMultiplier = userBaseMultipliers.computeIfAbsent(userId,
+                        id -> 0.5 + (new Random(id).nextDouble()));
+
+                    log.info("Simulating userId {} (multiplier: {})", userId,
+                        String.format("%.2f", userMultiplier));
+
+                    for (DeviceDto device : userDevices) {
+
+                        // ✅ KEY CHANGE: skip devices that are OFF
+                        if ("OFF".equalsIgnoreCase(device.status())) {
+                            log.debug("Device {} ({}) is OFF — skipping.", device.id(), device.name());
+                            continue;
+                        }
+
+                        DeviceProfile profile = DeviceProfile.fromType(device.type());
+                        double energy = profile.calculateEnergy(intervalMs, userMultiplier, random);
+
+                        if (energy > 0) {
+                            sendPayload(device.id(), energy);
+                        }
                     }
                 }
-            });
+
+            } catch (Exception e) {
+                log.error("Error in simulation tick: {}", e.getMessage(), e);
+            }
+        });
+    }
+
+    private void sendPayload(long deviceId, double energyConsumed) {
+        EnergyUsageDto dto = EnergyUsageDto.builder()
+            .deviceId(deviceId)
+            .energyConsumed(energyConsumed)
+            .timestamp(Instant.now())
+            .build();
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<EnergyUsageDto> request = new HttpEntity<>(dto, headers);
+            restTemplate.postForEntity(ingestionEndpoint, request, Void.class);
+            log.info("Sent → Device {}: {} kWh", deviceId, energyConsumed);
+        } catch (Exception e) {
+            log.error("Failed to send data for device {}: {}", deviceId, e.getMessage());
         }
     }
 
