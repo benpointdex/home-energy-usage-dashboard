@@ -1,18 +1,25 @@
 package com.henry.alert_service.service;
 
+import com.henry.alert_service.dto.AlertDto;
 import com.henry.alert_service.kafka.AlertingEvent;
+import com.henry.alert_service.repository.AlertRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 @Slf4j
 @Service
 public class AlertService {
 
     private final EmailService emailService;
+    private final AlertRepository alertRepository;
 
-    public AlertService(EmailService emailService) {
+    public AlertService(EmailService emailService,
+                        AlertRepository alertRepository) {
         this.emailService = emailService;
+        this.alertRepository = alertRepository;
     }
 
     @KafkaListener(topics = "energy-alerts", groupId = "alert-service")
@@ -29,5 +36,15 @@ public class AlertService {
                 subject,
                 message,
                 alertingEvent.getUserId());
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // GAP-03: Alert history query — returns alerts for a user, newest first
+    // ─────────────────────────────────────────────────────────────────────
+    public List<AlertDto> getAlertsForUser(Long userId) {
+        return alertRepository.findByUserIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(a -> new AlertDto(a.getId(), a.getUserId(), a.getCreatedAt(), a.isSent()))
+                .toList();
     }
 }
