@@ -59,7 +59,7 @@ public class UsageService {
 
     @KafkaListener(topics = "energy-usage", groupId = "usage-service")
     public void energyUsageEvent(EnergyUsageEvent energyUsageEvent) {
-        // log.info("Received energy usage event: {}", energyUsageEvent);
+        log.info("Received energy usage event: {}", energyUsageEvent);
         Point point = Point.measurement("energy_usage")
                 .addTag("deviceId", String.valueOf(energyUsageEvent.deviceId()))
                 .addField("energyConsumed", energyUsageEvent.energyConsumed())
@@ -223,10 +223,11 @@ public class UsageService {
           |> filter(fn: (r) => r["_field"] == "energyConsumed")
           |> filter(fn: (r) => %s)
           |> group(columns: ["deviceId"])
-          |> sum(column: "_value")
+          |> aggregateWindow(every: 1d, fn: sum, createEmpty: true, timeSrc: "_start")
         """, influxBucket, start.toString(), now.toString(), deviceFilter);
 
         final Map<Long, Double> aggregatedMap = new HashMap<>();
+        final Map<Long, Map<String, Double>> dailyUsageMap = new HashMap<>();
 
         try {
             QueryApi queryApi = influxDBClient.getQueryApi();
@@ -242,9 +243,17 @@ public class UsageService {
                             ? ((Number) record.getValueByKey("_value")).doubleValue()
                             : 0.0;
 
+                    Instant time = record.getTime();
+                    String dateStr = time != null ? time.toString().substring(0, 10) : "";
+
                     try {
                         Long deviceId = Long.valueOf(deviceIdStr);
                         aggregatedMap.put(deviceId, aggregatedMap.getOrDefault(deviceId, 0.0) + energyConsumed);
+
+                        if (time != null && !dateStr.isEmpty()) {
+                            dailyUsageMap.computeIfAbsent(deviceId, k -> new HashMap<>())
+                                    .put(dateStr, energyConsumed);
+                        }
                     } catch (NumberFormatException nfe) {
                         log.warn("Failed to parse deviceId from flux record: {}", deviceIdStr);
                     }
@@ -276,6 +285,7 @@ public class UsageService {
                         .location(d.getLocation())
                         .userId(d.getUserId())
                         .energyConsumed(d.getEnergyConsumed())
+                        .dailyUsage(dailyUsageMap.getOrDefault(d.getId(), Map.of()))
                         .build())
                 .toList();
 
