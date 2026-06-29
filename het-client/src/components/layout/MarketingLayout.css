@@ -1,0 +1,103 @@
+/* ═══════════════════════════════════════════════════════════════
+   MarketingLayout.css — Aura Design System
+   ═══════════════════════════════════════════════════════════════ */
+
+.marketing-layout {
+  min-height: 100vh;
+  background: var(--color-background);
+}
+
+/* ─── Marketing Nav (shown on Login/Register pages) ─── */
+.mkt-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding: var(--space-4) 0;
+  background: rgba(5, 5, 5, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.mkt-nav__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mkt-nav__logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.mkt-nav__logo-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.mkt-nav__logo:hover .mkt-nav__logo-icon {
+  border-color: var(--color-accent);
+}
+
+.mkt-nav__logo-text {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  letter-spacing: -0.02em;
+}
+
+.mkt-nav__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.mkt-nav__link {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--color-text-secondary);
+  transition: color var(--duration-fast) var(--ease-out);
+  padding: 10px 16px;
+}
+
+.mkt-nav__link:hover {
+  color: var(--color-text-primary);
+}
+
+.mkt-nav__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-secondary);
+  background: var(--color-accent);
+  padding: 10px 20px;
+  border-radius: var(--radius-pill);
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.mkt-nav__cta:hover {
+  background: var(--color-accent-hover);
+  transform: translateY(-1px);
+}
+
+.mkt-main {
+  padding-top: 80px;
+}
